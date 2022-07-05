@@ -1,199 +1,118 @@
-ï»¿#include "process_stl.h"
+#include "process_stl.h"
+#include <iostream>
 
+using namespace std;
 
-
-// è¯»å–åŒè„šçš„ascæ–‡ä»¶,è½¬æ¢æˆpcl::PointXYZç‚¹äº‘å˜é‡
-void readasc(string file_name, pcl::PointCloud<pcl::PointXYZ>& cloud)
+//¶ÁÈ¡Ë«½ÅµÄstlÎÄ¼şÂ·¾¶,Êä³öÇĞ¸îÍê×óÓÒ½ÅstlÎÄ¼ş
+bool splitfoots(string StlPath)
 {
-
-	// åˆå§‹åŒ–cloudå˜é‡
-	std::vector<pcl::PCLPointField> fields;
-	pcl::for_each_type<typename pcl::traits::fieldList<pcl::PointXYZ>::type>(pcl::detail::FieldAdder<pcl::PointXYZ>(fields));
-
-	// æ£€æŸ¥ XYZ æ˜¯å¦å­˜åœ¨
-	int x_idx = -1, y_idx = -1, z_idx = -1;
-	for (std::size_t d = 0; d < fields.size(); ++d)
-	{
-		if (fields[d].name == "x")
-			x_idx = fields[d].offset;
-		else if (fields[d].name == "y")
-			y_idx = fields[d].offset;
-		else if (fields[d].name == "z")
-			z_idx = fields[d].offset;
-	}
-
-	// è¯»å…¥ascæ–‡ä»¶ï¼ŒæŠŠæ¯ä¸€è¡Œçš„åæ ‡å­˜åˆ°vå˜é‡é‡Œ
-	std::vector<cv::Point3f> v;
-	std::ifstream ifs(file_name);
-	std::string buffer;
-	if (!ifs) {
-		std::cout << "Open file fail" << std::endl;
-		exit(1);
-	}
-	while (std::getline(ifs, buffer)) {
-		std::istringstream ss;
-		cv::Point3d tmp;
-		ss.str(buffer);
-		ss >> tmp.x >> tmp.y >> tmp.z;
-		//std::cout << tmp << std::endl;
-		v.push_back(tmp);
-	}
-
-	//æŠŠå˜é‡vé‡Œçš„æ•°æ®è¾“å‡ºåˆ°cloudå˜é‡
-	cloud.width = v.size();
-	cloud.height = 1; // This indicates that the point cloud is unorganized
-	cloud.is_dense = false;
-	cloud.resize(cloud.width * cloud.height);
-
-	std::cout << cloud.width << std::endl;
-
-	for (std::size_t i = 0; i < cloud.size(); ++i)
-	{
-
-		pcl::setFieldValue<pcl::PointXYZ, float>(cloud[i], x_idx, v[i].x);
-		pcl::setFieldValue<pcl::PointXYZ, float>(cloud[i], y_idx, v[i].y);
-		pcl::setFieldValue<pcl::PointXYZ, float>(cloud[i], z_idx, v[i].z);
-
-	}
-
-}
-
-
-//è¯»å–åŒè„šçš„stlæ–‡ä»¶è·¯å¾„,è¾“å‡ºåˆ‡å‰²å®Œå·¦å³è„šstlæ–‡ä»¶
-void splitfoots(string StlPath)
-{
-	//è¯»å–CADæ¨¡å‹
+	cout << "begin splitfoots" << endl;
+	//¶ÁÈ¡CADÄ£ĞÍ
 	vtkSmartPointer<vtkSTLReader> reader = vtkSmartPointer<vtkSTLReader>::New();
 	reader->SetFileName(StlPath.c_str());
 	reader->Update();
-	//å…ˆè½¬å‡ºåˆ°plyæ ¼å¼
+	//ÏÈ×ª³öµ½ply¸ñÊ½
 	vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New();
 	polyData = reader->GetOutput();
 	polyData->GetNumberOfPoints();
 
-
-
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>());
-	//ä»plyè½¬pcd
-	pcl::io::vtkPolyDataToPointCloud(polyData, *cloud2);
-	cout << cloud2->size() << endl;
-
-
-	string ascpath = "D:/work/scanner/footscan_tool/date/20220402091022.asc";
-	readasc(ascpath, *cloud);
-
+	//´Óply×ªpcd
+	pcl::io::vtkPolyDataToPointCloud(polyData, *cloud);
 
 	Eigen::Matrix4f transform_1 = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f transform_2 = Eigen::Matrix4f::Identity();
 
-	// Define a rotation matrix (see https://en.wikipedia.org/wiki/Rotation_matrix)
 	float theta = M_PI; // The angle of rotation in radians
 	float theta2 = M_PI / 2; // The angle of rotation in radians
 
-	//Xè½´
-	//transform_1(1, 1) = cos(theta);
-	//transform_1(1, 2) = sin(theta);
-	//transform_1(2, 1) = -sin(theta);
-	//transform_1(2, 2) = cos(theta);
-
-	//Yè½´
+	//YÖá
 	transform_1(0, 0) = cos(theta);
 	transform_1(0, 2) = -sin(theta);
 	transform_1(2, 0) = sin(theta);
 	transform_1(2, 2) = cos(theta);
 
-	//Zè½´
+	//ZÖá
 	transform_2(0, 0) = cos(theta2);
 	transform_2(0, 1) = sin(theta2);
 	transform_2(1, 0) = -sin(theta2);
 	transform_2(1, 1) = cos(theta2);
 
-
-
-	//cout << "å˜æ¢çŸ©é˜µ\n" << transform_1.matrix() << std::endl;
-	//cout << "å˜æ¢çŸ©é˜µ\n" << transform_2.matrix() << std::endl;
-
 	pcl::PointCloud<pcl::PointXYZ>::Ptr t_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-	// å¯ä»¥ä½¿ç”¨ transform_1 æˆ– transform_2; tå®ƒä»¬æ˜¯ä¸€æ ·çš„
+	// ¿ÉÒÔÊ¹ÓÃ transform_1 »ò transform_2; tËüÃÇÊÇÒ»ÑùµÄ
 	pcl::transformPointCloud(*cloud, *t_cloud, transform_1);
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr t_cloud2(new pcl::PointCloud<pcl::PointXYZ>());
-	// å¯ä»¥ä½¿ç”¨ transform_1 æˆ– transform_2; tå®ƒä»¬æ˜¯ä¸€æ ·çš„
+	// ¿ÉÒÔÊ¹ÓÃ transform_1 »ò transform_2; tËüÃÇÊÇÒ»ÑùµÄ
 	pcl::transformPointCloud(*t_cloud, *t_cloud2, transform_2);
 
 
-	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
-	viewer->setBackgroundColor(0, 0, 0);
-	viewer->addPointCloud<pcl::PointXYZ>(t_cloud2, "sample cloud");
-	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
-	viewer->addCoordinateSystem(1.0);
-	viewer->initCameraParameters();
+	//boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
+	//viewer->setBackgroundColor(0, 0, 0);
+	//viewer->addPointCloud<pcl::PointXYZ>(t_cloud2, "sample cloud");
+	//viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
+	//viewer->addCoordinateSystem();
+	//viewer->initCameraParameters();
 
-	while (!viewer->wasStopped())
-	{
-		viewer->spinOnce(100);
-		//boost::this_thread::sleep(boost::posix_time::microseconds(100000));
-	}
+	//while (!viewer->wasStopped())
+	//{
+	//	viewer->spinOnce(100);
+	//	//boost::this_thread::sleep(boost::posix_time::microseconds(100000));
+	//}
+	//
 
 
-
-	cout << "å¼€å§‹èšç±»" << endl;
-	// å»ºç«‹kd-treeå¯¹è±¡ç”¨æ¥æœç´¢ .
+	// ½¨Á¢kd-tree¶ÔÏóÓÃÀ´ËÑË÷ .
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZ>);
 	kdtree->setInputCloud(t_cloud2);
 
-	// Euclidean èšç±»å¯¹è±¡.
-	pcl::EuclideanClusterExtraction<pcl::PointXYZ> clustering;//ç±»EuclideanClusterExtractionæ˜¯åŸºäºæ¬§å¼è·ç¦»è¿›è¡Œèšç±»åˆ†å‰²çš„ç±»
-	clustering.setClusterTolerance(10);//è®¾ç½®åœ¨æ¬§æ°ç©ºé—´ä¸­æ‰€ä½¿ç”¨çš„æœç´¢åŠå¾„è®¾ç½®çš„è¿‡å°å¯èƒ½å¯¼è‡´èšç±»è¢«åˆ’åˆ†åˆ°å‡ ä¸ªé›†ç¾¤ï¼Œè®¾ç½®çš„è¿‡å¤§å¯èƒ½å°†èšç±»è¿›è¡Œè”é€š
-	clustering.setMinClusterSize(2000);// è®¾ç½®èšç±»åŒ…å«çš„çš„æœ€å°ç‚¹æ•°ç›®
-	clustering.setMaxClusterSize(20000); //è®¾ç½®èšç±»åŒ…å«çš„çš„æœ€å¤§ç‚¹æ•°ç›®
-	clustering.setSearchMethod(kdtree);//ç±»çš„å…³é”®æˆå‘˜å‡½æ•°
-	clustering.setInputCloud(t_cloud2);//æŒ‡å®šè¾“å…¥çš„ç‚¹äº‘è¿›è¡Œèšç±»åˆ†å‰²
-	std::vector<pcl::PointIndices> clusters;// clusterå­˜å‚¨ç‚¹äº‘èšç±»åˆ†å‰²çš„ç»“æœã€‚PointIndiceså­˜å‚¨å¯¹åº”ç‚¹é›†çš„ç´¢å¼•
+	// Euclidean ¾ÛÀà¶ÔÏó.
+	pcl::EuclideanClusterExtraction<pcl::PointXYZ> clustering;//ÀàEuclideanClusterExtractionÊÇ»ùÓÚÅ·Ê½¾àÀë½øĞĞ¾ÛÀà·Ö¸îµÄÀà
+	clustering.setClusterTolerance(10);//ÉèÖÃÔÚÅ·ÊÏ¿Õ¼äÖĞËùÊ¹ÓÃµÄËÑË÷°ë¾¶ÉèÖÃµÄ¹ıĞ¡¿ÉÄÜµ¼ÖÂ¾ÛÀà±»»®·Öµ½¼¸¸ö¼¯Èº£¬ÉèÖÃµÄ¹ı´ó¿ÉÄÜ½«¾ÛÀà½øĞĞÁªÍ¨
+	clustering.setMinClusterSize(2000);// ÉèÖÃ¾ÛÀà°üº¬µÄµÄ×îĞ¡µãÊıÄ¿
+	clustering.setMaxClusterSize(20000); //ÉèÖÃ¾ÛÀà°üº¬µÄµÄ×î´óµãÊıÄ¿
+	clustering.setSearchMethod(kdtree);//ÀàµÄ¹Ø¼ü³ÉÔ±º¯Êı
+	clustering.setInputCloud(t_cloud2);//Ö¸¶¨ÊäÈëµÄµãÔÆ½øĞĞ¾ÛÀà·Ö¸î
+	std::vector<pcl::PointIndices> clusters;// cluster´æ´¢µãÔÆ¾ÛÀà·Ö¸îµÄ½á¹û¡£PointIndices´æ´¢¶ÔÓ¦µã¼¯µÄË÷Òı
 	clustering.extract(clusters);
 
 
+	if (clusters.size() < 2)
+		return false;
 
-	cout << "å®Œæˆèšç±»" << endl;
-
-	// éå†æ¯ä¸€ç‚¹äº‘
+	// ±éÀúÃ¿Ò»µãÔÆ
 	int currentClusterNum = 1;
 	for (std::vector<pcl::PointIndices>::const_iterator i = clusters.begin(); i != clusters.end(); ++i)
 	{
-		//æ·»åŠ æ‰€æœ‰çš„ç‚¹äº‘åˆ°ä¸€ä¸ªæ–°çš„ç‚¹äº‘ä¸­
+		//Ìí¼ÓËùÓĞµÄµãÔÆµ½Ò»¸öĞÂµÄµãÔÆÖĞ
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
+		double mean;	//µãÔÆ¾ùÖµ
+		double stddev;	//µãÔÆ±ê×¼²î
+		vector<float> vec_y;
 		for (std::vector<int>::const_iterator point = i->indices.begin(); point != i->indices.end(); point++)
+		{
+			vec_y.push_back(t_cloud2->points[*point].y);
 			cluster->points.push_back(t_cloud2->points[*point]);
+		}
+
+		pcl::getMeanStd(vec_y, mean, stddev);
+		//cout << "\n->µãÔÆY×ø±êµÄ¾ùÖµÎª£º" << endl;
+		cout << mean << endl;
+
 		cluster->width = cluster->points.size();
 		cluster->height = 1;
 		cluster->is_dense = true;
 
-		// ä¿å­˜
+		// ±£´æ
 		if (cluster->points.size() <= 0)
-			break;
+			continue;
 
 		vtkSmartPointer<vtkPolyData> polyData2 = vtkSmartPointer<vtkPolyData>::New();
 		pcl::io::pointCloudTovtkPolyData(*cluster, polyData2);
 
-
-		boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
-		viewer->setBackgroundColor(0, 0, 0);
-		viewer->addPointCloud<pcl::PointXYZ>(cluster, "sample cloud");
-		viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
-		viewer->addCoordinateSystem(1.0);
-		viewer->initCameraParameters();
-
-		while (!viewer->wasStopped())
-		{
-			viewer->spinOnce(100);
-			//boost::this_thread::sleep(boost::posix_time::microseconds(100000));
-		}
-
-
 		vtkSmartPointer<vtkPolyData> points =
 			vtkSmartPointer<vtkPolyData>::New();
-		points->SetPoints(polyData2->GetPoints()); //è·å¾—ç½‘æ ¼æ¨¡å‹ä¸­çš„å‡ ä½•æ•°æ®ï¼šç‚¹é›†
+		points->SetPoints(polyData2->GetPoints()); //»ñµÃÍø¸ñÄ£ĞÍÖĞµÄ¼¸ºÎÊı¾İ£ºµã¼¯
 
 
 		vtkSmartPointer<vtkSurfaceReconstructionFilter> surf =
@@ -212,22 +131,27 @@ void splitfoots(string StlPath)
 		pcl::PolygonMesh ret;
 		pcl::io::vtk2mesh(contourFilter->GetOutput(), ret);
 
-		if (currentClusterNum == 1)
-			pcl::io::savePolygonFileSTL("D:/work/scanner/footscan_tool/date/L.stl", ret, true);
-		else if (currentClusterNum == 2)
-			pcl::io::savePolygonFileSTL("D:/work/scanner/footscan_tool/date/R.stl", ret, true);
+		if (mean > 0)
+			pcl::io::savePolygonFileSTL("L.stl", ret, true);
+		else
+			pcl::io::savePolygonFileSTL("R.stl", ret, true);
 
 		currentClusterNum++;
 	}
+
+	if (currentClusterNum != 3)
+		return false;
+
+	cout << "splitfoots finished" << endl;
+	return true;
 }
 
 
-
-int main(int argc, char** argv)
-{
-	string stlpath = "D:/work/scanner/footscan_tool/date/20220402091022.stl";
-	splitfoots(stlpath);
-
-	return 0;
-}
-
+int main(){
+  
+    cout << "Enter the dir path of stl model:" << endl;
+	string stlpath = "foot.stl";
+	bool ret = splitfoots(stlpath);
+	cout << boolalpha << ret << endl;
+    return 0;
+} 
